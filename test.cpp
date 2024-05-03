@@ -37,6 +37,20 @@ public:
         return 1;
     }
 
+    std::string test_param(bool a, int b, float c, double d, const char* e, std::string f, void* g)
+    {
+        std::cout << "test_param" << std::endl
+            << "    " << a << std::endl
+            << "    " << b << std::endl
+            << "    " << c << std::endl
+            << "    " << d << std::endl
+            << "    " << (e ? e : "") << std::endl
+            << "    " << f << std::endl
+            << "    " << g << std::endl;
+
+        return "test param return something!!!";
+    }
+
     static int sss(lua_State* L)
     {
         std::cout << "a class static method" << std::endl;
@@ -81,8 +95,13 @@ int main(int argc, char *argv[]) {
     reg_global_func<&test1>(L, "test1");
 
     LClass<Test> lt(L, "Test");
+    lt.def<&Test::set_i>("set_i");
+    lt.def<&Test::set_s>("set_s");
+    lt.def<&Test::get_i>("get_i");
+    lt.def<&Test::get_s>("get_s");
     lt.def<&Test::set>("set");
     lt.def<&Test::sss>("sss");
+    lt.def<&Test::test_param>("test_param");
 
     Test gt;
     gt.set_i(111111);
