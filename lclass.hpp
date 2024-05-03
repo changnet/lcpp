@@ -2,6 +2,7 @@
 
 #include <lua.hpp>
 #include <string>
+#include <cassert>
 
 template<typename T>
 T lua_to_c(lua_State* L, int i) {
@@ -183,7 +184,7 @@ public:
     }
 };
 
-template<auto fp, typename = std::enable_if_t<!std::is_same<decltype(fp), lua_CFunction>::value>>
+template<auto fp, typename = std::enable_if_t<!std::is_same_v<decltype(fp), lua_CFunction>>>
 void reg_global_func(lua_State* L, const char* name) {
     lua_register(L, name, Register<decltype(fp)>::template reg<fp>);
 }
@@ -196,9 +197,8 @@ void reg_global_func(lua_State* L, const char* name)
 
 template <class T> class LClass
 {
-protected:
-    /* 提供两种不同的注册函数,其返回值均为返回lua层的值数量 */
-    typedef int32_t(T::* lua_CppFunction)(lua_State*);
+private:
+    using lua_CppFunction = int32_t(T::*)(lua_State*);
 public:
     virtual ~LClass() {}
 
@@ -238,6 +238,9 @@ public:
                     func1 = xx,
                     func2 = xx,
                 },
+                metatable = {
+                    __call = xx,
+                }
             }
         }
          */
@@ -248,8 +251,15 @@ public:
         lua_pushcfunction(L, tostring);
         lua_setfield(L, -2, "__tostring");
 
-        lua_pushcfunction(L, c_new);
+        lua_pushcfunction(L, toludata);
+        lua_setfield(L, -2, "toludata");
+
+        // 创建一个table作为metatable的元表，这样 metatable() 就能创建一个对象
+        // 写法和C++一样
+        lua_newtable(L);
+        lua_pushcfunction(L, new_class_obj);
         lua_setfield(L, -2, "__call");
+        lua_setmetatable(L, -2);
 
         /*
         __index还需要创建一个table来保存函数，但为了节省内存，让 metatable.__index = metatable，
@@ -262,6 +272,8 @@ public:
 
         // 设置loaded，这样在Lua中可以像普通模块那样require "xxx"
         lua_setfield(L, -2, _class_name);
+
+        lua_pop(L, 1); // drop _loaded table
     }
 
     /* 将c对象push栈,gc表示lua销毁userdata时，在gc函数中是否将当前指针delete
@@ -304,76 +316,48 @@ public:
         return 0;
     }
 
-    /* 注册函数,const char* func_name 就是注册到lua中的函数名字 */
-    template <lua_CppFunction pf> LClass<T>& def(const char* func_name)
+    /*
+     * 定义格式为 int (T::*)(lua_State *L) 的成员函数，注意取参数时，需要从第2个开始取
+     */
+    template <lua_CppFunction pf>
+    void def(const char* name)
     {
         luaL_getmetatable(L, _class_name);
-
-        lua_getfield(L, -1, func_name);
-        if (!lua_isnil(L, -1))
-        {
-            ELOG("dumplicate def function %s:%s", _class_name, func_name);
-        }
-        lua_pop(L, 1); /* drop field */
 
         lua_pushcfunction(L, &fun_thunk<pf>);
-        lua_setfield(L, -2, func_name);
+        lua_setfield(L, -2, name);
 
         lua_pop(L, 1); /* drop class metatable */
-
-        return *this;
     }
 
-    /* 用于定义类的static函数 */
-    template <lua_CFunction pf> LClass<T>& def(const char* func_name)
+    /* 定义类的static函数 */
+    template <lua_CFunction pf>
+    void def(const char* name)
     {
         luaL_getmetatable(L, _class_name);
 
-        lua_getfield(L, -1, func_name);
-        if (!lua_isnil(L, -1))
-        {
-            ELOG("dumplicate def function %s:%s", _class_name, func_name);
-        }
-        lua_pop(L, 1); /* drop field */
-
         lua_pushcfunction(L, pf);
-        lua_setfield(L, -2, func_name);
+        lua_setfield(L, -2, name);
 
         lua_pop(L, 1); /* drop class metatable */
-
-        return *this;
     }
 
     /* 注册变量,通常用于设置宏定义、枚举 */
-    LClass<T>& set(int32_t val, const char* val_name)
+    void set(int32_t val, const char* val_name)
     {
         luaL_getmetatable(L, _class_name);
-
-        lua_getfield(L, -1, val_name);
-        if (!lua_isnil(L, -1))
-        {
-            ELOG("dumplicate set variable %s:%s", _class_name, val_name);
-        }
-        lua_pop(L, 1); /* drop field */
 
         lua_pushinteger(L, val);
         lua_setfield(L, -2, val_name);
 
         lua_pop(L, 1); /* drop class metatable */
-
-        return *this;
     }
 
 private:
     /* 创建c对象 */
-    static int c_new(lua_State* L)
+    static int new_class_obj(lua_State* L)
     {
-        /* 优先计数，在构造函数调用luaL_error执行longjump导致内存泄漏
-         * 这里至少能统计到
-         */
-        C_LUA_OBJECT_ADD(_class_name);
-
-        /* lua调用__call,第一个参数是该元表所属的table.取构造函数参数要注意 */
+        /* lua调用__call,第一个参数是元表 */
         T* obj = new T();
 
         lua_settop(L, 1); /* 清除所有构造函数参数,只保留元表 */
@@ -384,9 +368,18 @@ private:
         /* 把新创建的userdata和元表交换堆栈位置 */
         lua_insert(L, 1);
 
-        /* 弹出元表,并把元表设置为userdata的元表 */
+        /* 把元表设置为userdata的元表，并弹出元表 */
         lua_setmetatable(L, -2);
 
+        return 1;
+    }
+
+    // 把一个对象转换为一个light userdata
+    static int toludata(lua_State* L)
+    {
+        T** ptr = (T**)luaL_checkudata(L, 1, _class_name);
+        
+        lua_pushlightuserdata(L, *ptr);
         return 1;
     }
 
@@ -405,8 +398,6 @@ private:
     /* gc函数 */
     static int gc(lua_State* L)
     {
-        C_LUA_OBJECT_DEC(_class_name);
-
         if (luaL_getmetafield(L, 1, "_notgc"))
         {
             /* 以userdata为key取值。如果未设置该userdata的_notgc值，则将会取得nil */
@@ -435,11 +426,11 @@ private:
     }
 
     //创建子弱表
-    static void subtable(lua_State* L, int tindex, const char* name,
+    static void subtable(lua_State* L, int index, const char* name,
         const char* mode)
     {
         lua_pushstring(L, name);
-        lua_gettable(L, tindex); /* 判断是否已存在t[name] */
+        lua_rawget(L, index); /* 判断是否已存在t[name] */
 
         if (lua_isnil(L, -1)) /* 不存在，则创建 */
         {
@@ -447,30 +438,28 @@ private:
             weaktable(L, mode);
             lua_pushstring(L, name);
             lua_pushvalue(L, -2);
-            lua_settable(L, tindex); /* set t[name] */
+            lua_rawset(L, index); /* set t[name] */
         }
     }
 
-    template <lua_CppFunction pf> static int fun_thunk(lua_State* L)
+    template <lua_CppFunction pf>
+    static int fun_thunk(lua_State* L)
     {
-        T** ptr = (T**)luaL_checkudata(
-            L, 1, _class_name); /* get 'self', or if you prefer, 'this' */
-        if (EXPECT_FALSE(ptr == nullptr || *ptr == nullptr))
+        T** ptr = (T**)luaL_checkudata(L, 1, _class_name);
+        if (ptr == nullptr || *ptr == nullptr)
         {
             return luaL_error(L, "%s calling method with null pointer",
                 _class_name);
         }
 
-        /* remove self so member function args start at index 1 */
-        lua_remove(L, 1);
-
         return ((*ptr)->*pf)(L);
     }
 
-protected:
+private:
     lua_State* L;
     static const char* _class_name;
 };
+template <class T> const char* LClass<T>::_class_name = nullptr;
 
 // 构造函数指针不可获取，因为不知道是哪个重载
 // 单例不允许创建
