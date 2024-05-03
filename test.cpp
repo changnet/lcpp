@@ -37,6 +37,7 @@ public:
         return 1;
     }
 
+    // only std::string, no std::string &
     std::string test_param(bool a, int b, float c, double d, const char* e, std::string f, void* g)
     {
         std::cout << "test_param" << std::endl
@@ -88,7 +89,6 @@ int main(int argc, char *argv[]) {
     auto L = luaL_newstate();
     luaL_openlibs(L);
 
-    // register global function
     reg_global_func<&newTest>(L, "newTest");
     reg_global_func<&dumpTest>(L, "dumpTest");
     reg_global_func<&test>(L, "test");
