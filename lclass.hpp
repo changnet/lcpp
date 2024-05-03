@@ -202,19 +202,45 @@ protected:
 public:
     virtual ~LClass() {}
 
-    /* 在构造函数中不要调用virtual函数取c_new_func，只能当参数传进进来了 */
-    explicit LClass(lua_State* L, const char* classname,
-        lua_CFunction c_new_func = nullptr)
+    /*
+     * 注册一个类型，使用默认无参数构造函数创建对象 
+     */
+    explicit LClass(lua_State* L, const char* classname)
         : L(L)
     {
         _class_name = classname;
-        /* lua 5.3的get函数基本返回类型，而5.1基本为void。需要另外调用is函数 */
 
+        lua_getfield(L, LUA_REGISTRYINDEX, "_LOADED");
+        assert(lua_istable(L, -1));
+
+        // 该类名已经注册过
         if (0 == luaL_newmetatable(L, _class_name))
         {
-            FATAL("dumplicate define class %s\n", _class_name);
+            assert(false);
             return;
         }
+
+        /*
+        使用Lua创建一个类，需要用到Lua元表中的__index机制。__index是元表的一个key，value
+        为一个table，里面即这个类的各个函数。这说明，当访问一个类的函数时，需要判断获取metatable
+        ，再获取__index这个table，最终才取得对应的函数去调用。
+
+        这个机制的性能消耗其实是比较大的
+
+        local tbl = {
+            v1, v2, -- tbl对象的数据放tbl里
+
+            -- 元表负责函数
+            metatable = {
+                __gc = xx,
+                __tostring = xx,
+                __index = {
+                    func1 = xx,
+                    func2 = xx,
+                },
+            }
+        }
+         */
 
         lua_pushcfunction(L, gc);
         lua_setfield(L, -2, "__gc");
@@ -222,26 +248,20 @@ public:
         lua_pushcfunction(L, tostring);
         lua_setfield(L, -2, "__tostring");
 
-        /* metatable as value and pop metatable */
+        lua_pushcfunction(L, c_new);
+        lua_setfield(L, -2, "__call");
+
+        /*
+        __index还需要创建一个table来保存函数，但为了节省内存，让 metatable.__index = metatable，
+        这样func1和func2和__gc等函数放在一起，不需要额外创建一个table。
+
+        但请注意，如果不是为了覆盖__gc、__tostring等内置函数，请不要用这种名字。这是一个feature也是一个坑
+         */
         lua_pushvalue(L, -1);
         lua_setfield(L, -2, "__index");
 
-        lua_newtable(L);
-        lua_pushcfunction(L, c_new_func);
-        lua_setfield(L, -2, "__call");
-        lua_setmetatable(L, -2);
-
-        lua_getfield(L, LUA_REGISTRYINDEX, "_LOADED");
-        if (!lua_istable(L, -1))
-        {
-            FATAL("define class before lua openlibs");
-            return;
-        }
-
-        lua_pushvalue(L, 1);
+        // 设置loaded，这样在Lua中可以像普通模块那样require "xxx"
         lua_setfield(L, -2, _class_name);
-
-        lua_settop(L, 0);
     }
 
     /* 将c对象push栈,gc表示lua销毁userdata时，在gc函数中是否将当前指针delete
@@ -254,16 +274,17 @@ public:
         assert(obj);
         assert(_class_name);
 
-        /* 这里只是创建一个指针给lua管理，可以换用placement new把整个对象的
-           内存都给lua管理
+        /* 这里只是创建一个指针给lua管理
         */
         const T** ptr = (const T**)lua_newuserdata(L, sizeof(T*));
         *ptr = obj;
 
-        C_LUA_OBJECT_ADD(_class_name);
-
         // 只有用lcalss定义了对应类的对象能push到lua，因此这里的metatable必须存在
         luaL_getmetatable(L, _class_name);
+        if (!lua_istable(L, -1))
+        {
+            return -1;
+        }
 
         /* 如果不自动gc，则需要在metatable中设置一张名为_notgc的表。以userdata
          * 为key的weaktable。当lua层调用gc时,userdata本身还存在，故这时判断是准确的
@@ -279,7 +300,8 @@ public:
             lua_pop(L, 1); /* drop _notgc out of stack */
         }
 
-        return lua_setmetatable(L, -2);
+        lua_setmetatable(L, -2);
+        return 0;
     }
 
     /* 注册函数,const char* func_name 就是注册到lua中的函数名字 */
@@ -343,12 +365,29 @@ public:
     }
 
 private:
-    /* 单例，不能创建c对象。可以直接在C中push对象到lua */
-    static int32_t cnew(lua_State* L)
+    /* 创建c对象 */
+    static int c_new(lua_State* L)
     {
-        UNUSED(L);
-        assert(false);
-        return 0;
+        /* 优先计数，在构造函数调用luaL_error执行longjump导致内存泄漏
+         * 这里至少能统计到
+         */
+        C_LUA_OBJECT_ADD(_class_name);
+
+        /* lua调用__call,第一个参数是该元表所属的table.取构造函数参数要注意 */
+        T* obj = new T();
+
+        lua_settop(L, 1); /* 清除所有构造函数参数,只保留元表 */
+
+        T** ptr = (T**)lua_newuserdata(L, sizeof(T*));
+        *ptr = obj;
+
+        /* 把新创建的userdata和元表交换堆栈位置 */
+        lua_insert(L, 1);
+
+        /* 弹出元表,并把元表设置为userdata的元表 */
+        lua_setmetatable(L, -2);
+
+        return 1;
     }
 
     /* 元方法,__tostring */
