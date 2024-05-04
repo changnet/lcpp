@@ -285,12 +285,16 @@ private:
         }
     };
 public:
-    virtual ~LClass()
-    {}
+    virtual ~LClass() {}
 
-    /*
-     * 注册一个类型，使用默认无参数构造函数创建对象
-     */
+    // 创建一个类的对象，但不向lua注册。仅用于注册后使用同样的对象并且虚拟机L应该和注册时一致
+    explicit LClass(lua_State* L) : L(L)
+    {
+        // 注册过后，必定存在类名
+        // assert（_class_name);
+    }
+
+    // 注册一个类
     explicit LClass(lua_State* L, const char* classname)
         : L(L)
     {
@@ -341,11 +345,15 @@ public:
         lua_setfield(L, -2, "toludata");
 
         // 创建一个table作为metatable的元表，这样 metatable() 就能创建一个对象
-        // 写法和C++一样
-        lua_newtable(L);
-        lua_pushcfunction(L, new_class_obj);
-        lua_setfield(L, -2, "__call");
-        lua_setmetatable(L, -2);
+        // 保持写法和C++一样
+        // if constexpr 是编译时生成，所以没有构造函数的类型，是不会注册__call的
+        if constexpr (std::is_constructible_v<T>)
+        {
+            lua_newtable(L);
+            lua_pushcfunction(L, new_class_obj);
+            lua_setfield(L, -2, "__call");
+            lua_setmetatable(L, -2);
+        }
 
         /*
         __index还需要创建一个table来保存函数，但为了节省内存，让 metatable.__index = metatable，
@@ -399,6 +407,15 @@ public:
         }
 
         lua_setmetatable(L, -2);
+        return 0;
+    }
+
+    // 把一个对象指针push到全局变量
+    static int push_global(lua_State* L, const T* obj, const char* name, bool gc = false)
+    {
+        if (0 != push(L, obj, gc)) return -1;
+
+        lua_setglobal(L, name);
         return 0;
     }
 

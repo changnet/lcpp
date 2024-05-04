@@ -25,6 +25,10 @@ function main()
 	local TestCtor = require "TestCtor"
 	local tc = TestCtor(1111111, "tctctctctc")
 	tc:dump()
+
+	-- local TestCtor2 = require "TestCtor2"
+	-- local gtc2 = TestCtor2() -- !!! no constructor
+	gtc2:dump()
 end
 
 local ok, msg = xpcall(main, function(msg)

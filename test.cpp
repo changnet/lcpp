@@ -80,24 +80,31 @@ public:
             << "    " << _i << std::endl
             << "    " << _s << std::endl;
     }
-    static TestCtor& instance()
-    {
-        return *_ins;
-    }
 private:
     int _i;
     std::string _s;
-    static TestCtor* _ins;
 };
-TestCtor* TestCtor::_ins = nullptr;
 
 class TestCtor2
 {
+public:
+    static TestCtor2 *instance()
+    {
+        if (!_ins) _ins = new TestCtor2();
+
+        return _ins;
+    }
+    void dump()
+    {
+        std::cout << "dump TestCtor2" << std::endl;
+    }
 private:
     TestCtor2()
     {
     }
+    static TestCtor2* _ins;
 };
+TestCtor2* TestCtor2::_ins = nullptr;
 
 Test *newTest() {
     auto p = new Test;
@@ -142,13 +149,19 @@ int main(int argc, char *argv[])
     LClass<TestCtor, int, const char*> ltc(L, "TestCtor");
     ltc.def<&TestCtor::dump>("dump");
 
-    //LClass<TestCtor2> ltc2(L, "TestCtor2");
+    LClass<TestCtor2> ltc2(L, "TestCtor2");
+    ltc2.def<&TestCtor2::dump>("dump");
 
     Test gt;
     gt.set_i(111111);
     gt.set_s("222222222222");
     lt.push(L, &gt);
     lua_setglobal(L, "gt");
+
+    TestCtor2* gtc2 = TestCtor2::instance();
+
+    LClass<TestCtor2> ltc2_1(L);
+    ltc2_1.push_global(L, gtc2, "gtc2");
 
     luaL_dofile(L, "test.lua");
  
