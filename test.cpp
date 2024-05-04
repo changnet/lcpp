@@ -1,8 +1,13 @@
 #include "lclass.hpp"
 #include <iostream>
 
-class Test {
+class Test
+{
 public:
+    enum
+    {
+        V1 = 2
+    };
     Test(): _i(0), _s("")
     {
     }
@@ -145,6 +150,7 @@ int main(int argc, char *argv[])
     lt.def<&Test::set>("set");
     lt.def<&Test::sss>("sss");
     lt.def<&Test::test_param>("test_param");
+    lt.set(Test::V1, "V1");
 
     LClass<TestCtor, int, const char*> ltc(L, "TestCtor");
     ltc.def<&TestCtor::dump>("dump");
