@@ -7,7 +7,7 @@
 namespace
 {
     template<typename T>
-    T lua_to_c(lua_State* L, int i)
+    T lua_to_cpp(lua_State* L, int i)
     {
         static_assert(std::is_pointer<T>::value, "type unknow");
 
@@ -15,86 +15,86 @@ namespace
     }
 
     template<>
-    bool lua_to_c<bool>(lua_State* L, int i)
+    bool lua_to_cpp<bool>(lua_State* L, int i)
     {
         return lua_toboolean(L, i) != 0;
     }
 
     template<>
-    char lua_to_c<char>(lua_State* L, int i)
+    char lua_to_cpp<char>(lua_State* L, int i)
     {
         return (char)lua_tointeger(L, i);
     }
 
     template<>
-    unsigned char lua_to_c<unsigned char>(lua_State* L, int i)
+    unsigned char lua_to_cpp<unsigned char>(lua_State* L, int i)
     {
         return (unsigned char)lua_tointeger(L, i);
     }
 
     template<>
-    short lua_to_c<short>(lua_State* L, int i)
+    short lua_to_cpp<short>(lua_State* L, int i)
     {
         return (short)lua_tointeger(L, i);
     }
 
     template<>
-    unsigned short lua_to_c<unsigned short>(lua_State* L, int i)
+    unsigned short lua_to_cpp<unsigned short>(lua_State* L, int i)
     {
         return (unsigned short)lua_tointeger(L, i);
     }
 
     template<>
-    int lua_to_c<int>(lua_State* L, int i)
+    int lua_to_cpp<int>(lua_State* L, int i)
     {
         return (int)lua_tointeger(L, i);
     }
 
     template<>
-    unsigned int lua_to_c<unsigned int>(lua_State* L, int i)
+    unsigned int lua_to_cpp<unsigned int>(lua_State* L, int i)
     {
         return (unsigned int)lua_tointeger(L, i);
     }
 
     template<>
-    long lua_to_c<long>(lua_State* L, int i)
+    long lua_to_cpp<long>(lua_State* L, int i)
     {
         return (long)lua_tointeger(L, i);
     }
 
     template<>
-    unsigned long lua_to_c<unsigned long>(lua_State* L, int i)
+    unsigned long lua_to_cpp<unsigned long>(lua_State* L, int i)
     {
         return (unsigned long)lua_tointeger(L, i);
     }
 
     template<>
-    long long lua_to_c<long long>(lua_State* L, int i)
+    long long lua_to_cpp<long long>(lua_State* L, int i)
     {
         return lua_tointeger(L, i);
     }
 
     template<>
     unsigned long long
-        lua_to_c<unsigned long long>(lua_State* L, int i)
+        lua_to_cpp<unsigned long long>(lua_State* L, int i)
     {
         return (unsigned long long) lua_tointeger(L, i);
     }
 
     template<>
-    float lua_to_c<float>(lua_State* L, int i)
+    float lua_to_cpp<float>(lua_State* L, int i)
     {
         return (float)lua_tonumber(L, i);
     }
 
     template<>
-    double lua_to_c<double>(lua_State* L, int i)
+    double lua_to_cpp<double>(lua_State* L, int i)
     {
         return lua_tonumber(L, i);
     }
 
     template<>
-    const char* lua_to_c<const char*>(lua_State* L, int i)
+    const char* lua_to_cpp<const char*>(lua_State* L, int i)
     {
         // 这里要注意，无法转换为const char*会返回NULL
         // 这个类型对c++并不安全，比如 std::cout << NULL就会直接当掉，用时需要检测指针
@@ -102,95 +102,95 @@ namespace
     }
 
     template<>
-    std::string lua_to_c<std::string>(lua_State* L, int i)
+    std::string lua_to_cpp<std::string>(lua_State* L, int i)
     {
         const char* str = lua_tostring(L, i);
         return str == nullptr ? "" : str;
     }
 
     template<typename T>
-    void c_to_lua(lua_State* L, T v)
+    void cpp_to_lua(lua_State* L, T v)
     {
         static_assert(std::is_pointer<T>::value, "type unknow");
         lua_pushlightuserdata(L, v);
     }
 
-    void c_to_lua(lua_State* L, bool v)
+    void cpp_to_lua(lua_State* L, bool v)
     {
         lua_pushboolean(L, v);
     }
 
-    void c_to_lua(lua_State* L, char v)
+    void cpp_to_lua(lua_State* L, char v)
     {
         lua_pushinteger(L, v);
     }
 
-    void c_to_lua(lua_State* L, unsigned char v)
+    void cpp_to_lua(lua_State* L, unsigned char v)
     {
         lua_pushinteger(L, v);
     }
 
-    void c_to_lua(lua_State* L, short v)
+    void cpp_to_lua(lua_State* L, short v)
     {
         lua_pushinteger(L, v);
     }
 
-    void c_to_lua(lua_State* L, unsigned short v)
+    void cpp_to_lua(lua_State* L, unsigned short v)
     {
         lua_pushinteger(L, v);
     }
 
-    void c_to_lua(lua_State* L, int v)
+    void cpp_to_lua(lua_State* L, int v)
     {
         lua_pushinteger(L, v);
     }
 
-    void c_to_lua(lua_State* L, unsigned int v)
+    void cpp_to_lua(lua_State* L, unsigned int v)
     {
         lua_pushinteger(L, v);
     }
 
-    void c_to_lua(lua_State* L, long v)
+    void cpp_to_lua(lua_State* L, long v)
     {
         lua_pushinteger(L, v);
     }
 
-    void c_to_lua(lua_State* L, unsigned long v)
+    void cpp_to_lua(lua_State* L, unsigned long v)
     {
         lua_pushinteger(L, v);
     }
 
-    void c_to_lua(lua_State* L, long long v)
+    void cpp_to_lua(lua_State* L, long long v)
     {
         lua_pushinteger(L, (lua_Integer)v);
     }
 
-    void c_to_lua(lua_State* L, unsigned long long v)
+    void cpp_to_lua(lua_State* L, unsigned long long v)
     {
         lua_pushinteger(L, (lua_Integer)v);
     }
 
-    void c_to_lua(lua_State* L, float v)
+    void cpp_to_lua(lua_State* L, float v)
     {
         lua_pushnumber(L, v);
     }
 
-    void c_to_lua(lua_State* L, double v)
+    void cpp_to_lua(lua_State* L, double v)
     {
         lua_pushnumber(L, v);
     }
 
-    void c_to_lua(lua_State* L, const char* v)
+    void cpp_to_lua(lua_State* L, const char* v)
     {
         lua_pushstring(L, v);
     }
 
-    void c_to_lua(lua_State* L, char* v)
+    void cpp_to_lua(lua_State* L, char* v)
     {
         lua_pushstring(L, v);
     }
 
-    void c_to_lua(lua_State* L, const std::string& v)
+    void cpp_to_lua(lua_State* L, const std::string& v)
     {
         lua_pushstring(L, v.c_str());
     }
@@ -206,13 +206,13 @@ namespace
         template <size_t... I, typename = std::enable_if_t<!std::is_void<Ret>::value>>
         static int caller(lua_State* L, Ret(*fp)(Args...), const std::index_sequence<I...>&)
         {
-            c_to_lua(L, fp(lua_to_c<Args>(L, 1 + I)...));
+            cpp_to_lua(L, fp(lua_to_cpp<Args>(L, 1 + I)...));
             return 1;
         }
         template <size_t... I>
         static int caller(lua_State* L, void(*fp)(Args...), const std::index_sequence<I...>&)
         {
-            fp(lua_to_c<Args>(L, 1 + I)...);
+            fp(lua_to_cpp<Args>(L, 1 + I)...);
             return 0;
         }
     public:
@@ -261,7 +261,7 @@ private:
                 return luaL_error(L, "%s calling method with null pointer",
                     _class_name);
             }
-            c_to_lua(L, ((*ptr)->*fp)(lua_to_c<Args>(L, 2 + I)...));
+            cpp_to_lua(L, ((*ptr)->*fp)(lua_to_cpp<Args>(L, 2 + I)...));
             return 1;
         }
         template <size_t... I>
@@ -274,7 +274,7 @@ private:
                     _class_name);
             }
 
-            ((*ptr)->*fp)(lua_to_c<Args>(L, 2 + I)...);
+            ((*ptr)->*fp)(lua_to_cpp<Args>(L, 2 + I)...);
             return 0;
         }
     public:
@@ -476,7 +476,7 @@ private:
     template <size_t... I>
     static T *class_obj_creator(lua_State* L, const std::index_sequence<I...>&)
     {
-        return new T(lua_to_c<CtorArgs>(L, 2 + I)...);
+        return new T(lua_to_cpp<CtorArgs>(L, 2 + I)...);
     }
 
     /* 创建c对象 */
