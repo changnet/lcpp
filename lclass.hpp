@@ -108,7 +108,6 @@ namespace
         return str == nullptr ? "" : str;
     }
 
-
     template<typename T>
     void c_to_lua(lua_State* L, T v)
     {
@@ -198,14 +197,14 @@ namespace
 
 
     template <class T> class Register;
-    template<typename ReturnType, typename... Args>
-    class Register<ReturnType(*)(Args...)>
+    template<typename Ret, typename... Args>
+    class Register<Ret(*)(Args...)>
     {
     private:
         static constexpr auto indices = std::make_index_sequence<sizeof...(Args)>{};
 
-        template <size_t... I, typename = std::enable_if_t<!std::is_void<ReturnType>::value>>
-        static int caller(lua_State* L, ReturnType(*fp)(Args...), const std::index_sequence<I...>&)
+        template <size_t... I, typename = std::enable_if_t<!std::is_void<Ret>::value>>
+        static int caller(lua_State* L, Ret(*fp)(Args...), const std::index_sequence<I...>&)
         {
             c_to_lua(L, fp(lua_to_c<Args>(L, 1 + I)...));
             return 1;
@@ -225,32 +224,36 @@ namespace
     };
 }
 
-template<auto fp, typename = std::enable_if_t<!std::is_same_v<decltype(fp), lua_CFunction>>>
-void reg_global_func(lua_State* L, const char* name)
+namespace lclass
 {
-    lua_register(L, name, Register<decltype(fp)>::template reg<fp>);
+    template<auto fp, typename = std::enable_if_t<!std::is_same_v<decltype(fp), lua_CFunction>>>
+    void reg_global_func(lua_State* L, const char* name)
+    {
+        lua_register(L, name, Register<decltype(fp)>::template reg<fp>);
+    }
+
+    template<lua_CFunction fp>
+    void reg_global_func(lua_State* L, const char* name)
+    {
+        lua_register(L, name, fp);
+    }
 }
 
-template<lua_CFunction fp>
-void reg_global_func(lua_State* L, const char* name)
-{
-    lua_register(L, name, fp);
-}
-
-template <class T> class LClass
+template <class T, typename... CtorArgs>
+class LClass
 {
 private:
     using lua_CppFunction = int32_t(T::*)(lua_State*);
 
     template <class T> class ClassRegister;
-    template<typename ReturnType, typename... Args>
-    class ClassRegister<ReturnType(T::*)(Args...)>
+    template<typename Ret, typename... Args>
+    class ClassRegister<Ret(T::*)(Args...)>
     {
     private:
         static constexpr auto indices = std::make_index_sequence<sizeof...(Args)>{};
 
-        template <size_t... I, typename = std::enable_if_t<!std::is_void<ReturnType>::value>>
-        static int caller(lua_State* L, ReturnType(T::* fp)(Args...), const std::index_sequence<I...>&)
+        template <size_t... I, typename = std::enable_if_t<!std::is_void<Ret>::value>>
+        static int caller(lua_State* L, Ret(T::* fp)(Args...), const std::index_sequence<I...>&)
         {
             T** ptr = (T**)luaL_checkudata(L, 1, _class_name);
             if (ptr == nullptr || *ptr == nullptr)
@@ -453,11 +456,17 @@ public:
     }
 
 private:
+    template <size_t... I>
+    static T *class_obj_creator(lua_State* L, const std::index_sequence<I...>&)
+    {
+        return new T(lua_to_c<CtorArgs>(L, 2 + I)...);
+    }
+
     /* 创建c对象 */
     static int new_class_obj(lua_State* L)
     {
         /* lua调用__call,第一个参数是元表 */
-        T* obj = new T();
+        T* obj = class_obj_creator(L, _ctor_indices);
 
         lua_settop(L, 1); /* 清除所有构造函数参数,只保留元表 */
 
@@ -557,5 +566,6 @@ private:
 private:
     lua_State* L;
     static const char* _class_name;
+    static constexpr auto _ctor_indices = std::make_index_sequence<sizeof...(CtorArgs)>{};
 };
-template <class T> const char* LClass<T>::_class_name = nullptr;
+template <class T, typename... CtorArgs> const char* LClass<T, CtorArgs...>::_class_name = nullptr;

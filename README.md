@@ -15,4 +15,5 @@ test my idea about lua cpp binding, this repo will not update after test finish!
 * 安全问题
 */
 ```
-
+引用不能用作参数
+void dump() const不能注册

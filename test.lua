@@ -21,6 +21,10 @@ function main()
 	gt.sss()            -- !!! not gt:sss()
 	gt:test_param(true, 2222, 3.3333, 44.44444, "5555555", "6666666666666", gt:toludata());
 	gt:test_param()
+
+	local TestCtor = require "TestCtor"
+	local tc = TestCtor(1111111, "tctctctctc")
+	tc:dump()
 end
 
 local ok, msg = xpcall(main, function(msg)

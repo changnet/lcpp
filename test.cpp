@@ -62,10 +62,45 @@ private:
     std::string _s;
 };
 
+class TestCtor
+{
+public:
+    TestCtor()
+    {
+        _i = 0;
+        _s = "";
+    }
+
+    TestCtor(int i, const char* s): _i(i), _s(s)
+    {
+    }
+    void dump()
+    {
+        std::cout << "dump TestCtor" << std::endl
+            << "    " << _i << std::endl
+            << "    " << _s << std::endl;
+    }
+    static TestCtor& instance()
+    {
+        return *_ins;
+    }
+private:
+    int _i;
+    std::string _s;
+    static TestCtor* _ins;
+};
+TestCtor* TestCtor::_ins = nullptr;
+
+class TestCtor2
+{
+private:
+    TestCtor2()
+    {
+    }
+};
+
 Test *newTest() {
     auto p = new Test;
-    p->set_i(22222);
-    p->set_s("afsadfdsfasf");
     return p;
 }
 
@@ -85,14 +120,15 @@ int test1(lua_State* L)
     return 1;
 }
 
-int main(int argc, char *argv[]) {
+int main(int argc, char *argv[])
+{
     auto L = luaL_newstate();
     luaL_openlibs(L);
 
-    reg_global_func<&newTest>(L, "newTest");
-    reg_global_func<&dumpTest>(L, "dumpTest");
-    reg_global_func<&test>(L, "test");
-    reg_global_func<&test1>(L, "test1");
+    lclass::reg_global_func<&newTest>(L, "newTest");
+    lclass::reg_global_func<&dumpTest>(L, "dumpTest");
+    lclass::reg_global_func<&test>(L, "test");
+    lclass::reg_global_func<&test1>(L, "test1");
 
     LClass<Test> lt(L, "Test");
     lt.def<&Test::set_i>("set_i");
@@ -102,6 +138,11 @@ int main(int argc, char *argv[]) {
     lt.def<&Test::set>("set");
     lt.def<&Test::sss>("sss");
     lt.def<&Test::test_param>("test_param");
+
+    LClass<TestCtor, int, const char*> ltc(L, "TestCtor");
+    ltc.def<&TestCtor::dump>("dump");
+
+    //LClass<TestCtor2> ltc2(L, "TestCtor2");
 
     Test gt;
     gt.set_i(111111);
