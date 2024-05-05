@@ -1,5 +1,6 @@
 #include "lclass.hpp"
 #include <iostream>
+#include <sol/sol.hpp>
 
 class Test
 {
@@ -12,7 +13,7 @@ public:
     {
     }
 
-    int get_i()
+    int get_i() //const
     {
         return _i;
     }
@@ -132,6 +133,17 @@ int test1(lua_State* L)
     return 1;
 }
 
+void test2(std::string s)
+{
+}
+
+class player
+{
+public:
+    void shoot() const
+    {}
+};
+
 int main(int argc, char *argv[])
 {
     auto L = luaL_newstate();
@@ -172,5 +184,21 @@ int main(int argc, char *argv[])
     luaL_dofile(L, "test.lua");
  
     lua_close(L);
+
+    sol::state lua;
+    lua.open_libraries(sol::lib::base);
+
+    // test with sol
+
+    int x = 0;
+    lua.set_function("beep", [&x] { ++x; });
+    lua.set_function("test2", test2);
+    lua.script("beep()");
+    assert(x == 1);
+
+    sol::usertype<player> player_type = lua.new_usertype<player>("player",
+        sol::constructors<player()>());
+    player_type["shoot"] = &player::shoot;
+
     return 0;
 }
