@@ -19,7 +19,8 @@ function main()
 
 	dumpTest(gt:toludata()) -- !!! not dumpTest(gt)
 	gt.sss()            -- !!! not gt:sss()
-	gt:test_param(true, 2222, 3.3333, 44.44444, "5555555", "6666666666666", gt:toludata());
+	gt:test_param(true, 2222, 3.3333, 44.44444, "5555555", "6666666666666",
+		gt:toludata(), "88888888", "999999999");
 	gt:test_param()
 
 	local TestCtor = require "TestCtor"

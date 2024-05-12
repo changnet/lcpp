@@ -44,7 +44,7 @@ public:
     }
 
     // only std::string, no std::string &
-    std::string test_param(bool a, int b, float c, double d, const char* e, std::string f, void* g)
+    std::string test_param(bool a, int b, float c, double d, const char* e, std::string f, void* g, std::string& h, char *i)
     {
         std::cout << "test_param" << std::endl
             << "    " << a << std::endl
@@ -53,7 +53,10 @@ public:
             << "    " << d << std::endl
             << "    " << (e ? e : "") << std::endl
             << "    " << f << std::endl
-            << "    " << g << std::endl;
+            << "    " << g << std::endl
+            << "    " << h << std::endl
+            << "    " << (i ? i : "") << std::endl
+            ;
 
         return "test param return something!!!";
     }
@@ -140,9 +143,21 @@ void test2(std::string s)
 class player
 {
 public:
-    void shoot() const
-    {}
+    void shoot(std::string &s)
+    {
+        std::cout << "shoot " << s << std::endl;
+    }
 };
+
+void test3(std::string& i)
+{
+    std::cout << "test3 " << i << std::endl;
+}
+
+std::string fc_ret()
+{
+    return "";
+}
 
 int main(int argc, char *argv[])
 {
@@ -199,6 +214,8 @@ int main(int argc, char *argv[])
     sol::usertype<player> player_type = lua.new_usertype<player>("player",
         sol::constructors<player()>());
     player_type["shoot"] = &player::shoot;
+
+    test3(fc_ret());
 
     return 0;
 }

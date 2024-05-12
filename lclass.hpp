@@ -102,6 +102,14 @@ namespace
     }
 
     template<>
+    char* lua_to_cpp<char*>(lua_State* L, int i)
+    {
+        // 这里要注意，无法转换为const char*会返回NULL
+        // 这个类型对c++并不安全，比如 std::cout << NULL就会直接当掉，用时需要检测指针
+        return const_cast<char *>(lua_tostring(L, i));
+    }
+
+    template<>
     std::string lua_to_cpp<std::string>(lua_State* L, int i)
     {
         const char* str = lua_tostring(L, i);
@@ -195,6 +203,8 @@ namespace
         lua_pushstring(L, v.c_str());
     }
 
+    template <typename T>
+    using remove_cvref = std::remove_cv<std::remove_reference_t<T>>::template type; // C++ 20 std::remove_cvref
 
     template <class T> class Register;
     template<typename Ret, typename... Args>
@@ -206,13 +216,13 @@ namespace
         template <size_t... I, typename = std::enable_if_t<!std::is_void<Ret>::value>>
         static int caller(lua_State* L, Ret(*fp)(Args...), const std::index_sequence<I...>&)
         {
-            cpp_to_lua(L, fp(lua_to_cpp<Args>(L, 1 + I)...));
+            cpp_to_lua(L, fp(lua_to_cpp<remove_cvref<Args>>(L, 1 + I)...));
             return 1;
         }
         template <size_t... I>
         static int caller(lua_State* L, void(*fp)(Args...), const std::index_sequence<I...>&)
         {
-            fp(lua_to_cpp<Args>(L, 1 + I)...);
+            fp(lua_to_cpp<remove_cvref<Args>>(L, 1 + I)...);
             return 0;
         }
     public:
@@ -261,7 +271,7 @@ private:
                 return luaL_error(L, "%s calling method with null pointer",
                     _class_name);
             }
-            cpp_to_lua(L, ((*ptr)->*fp)(lua_to_cpp<Args>(L, 2 + I)...));
+            cpp_to_lua(L, ((*ptr)->*fp)(lua_to_cpp<remove_cvref<Args>>(L, 2 + I)...));
             return 1;
         }
         template <size_t... I>
@@ -274,7 +284,7 @@ private:
                     _class_name);
             }
 
-            ((*ptr)->*fp)(lua_to_cpp<Args>(L, 2 + I)...);
+            ((*ptr)->*fp)(lua_to_cpp<remove_cvref<Args>>(L, 2 + I)...);
             return 0;
         }
     public:
