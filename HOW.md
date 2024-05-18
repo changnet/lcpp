@@ -60,8 +60,29 @@ std::string fc_ret()
 test3(fc_ret());
 ```
 
+另外，在查`std::remove_cvr`的资料时，我发现在一起的还有一个`std::remove_volatile`，不过这个我没用过，暂时就不处理了。
+
 
 ### `void dump() const`不能注册
+
+上面解决了参数的const问题，但是函数也有const，比如`int get_i() const`，这样也需要一个const类型才能处理。最简单的办法当然是多实现一套const的模板，但是上面用`std::remove_cv`去掉了，这里我也想直接去掉，因为一个const函数只是编译时起作用，对于Lua运行时调用这个const并没有什么使用。
+结果出乎意料的是`std::remove_cv`对函数类型是不生效的。
+
+哪咋办呢，实现两套模板？我原本想的是，只有一个ClassRegister类，里面多实现一个带const的caller函数即可。结果发现不行，因为函数类型是传给ClassRegister类的，那就要实现一套`class ClassRegister<Ret(T::*)(Args...)>`，另一套`class ClassRegister<Ret(T::*)(Args...) const>`。
+这样是可以的，但是这两套模板，除了这个const其他完全一样，没达到代码复用的目的，比较难维护。
+
+复用代码这个事嘛，一个是组合，一个是继承，宏定义这种就不用了。那这里用继承比较合适，用带const的去继承不带const的即可，里面的函数就可以不用重新实现一套。
+```cpp
+    template<typename Ret, typename... Args>
+    class ClassRegister<Ret(T::*)(Args...) const> : public ClassRegister<Ret(T::*)(Args...)>
+```
+只是原来的caller函数是带类型的`static int caller(lua_State* L, Ret(T::* fp)(Args...), const std::index_sequence<I...>&)`，那现在这个类型就不固定了，因此也要改成和类型无关的auto，并放到模板参数中
+```cpp
+        template <auto fp, size_t... I>
+        static int caller(lua_State* L, const std::index_sequence<I...>&)
+```
+
+我又查了一下，发现[https://stackoverflow.com/questions/38767993/should-stdremove-cv-work-on-function-types](https://stackoverflow.com/questions/38767993/should-stdremove-cv-work-on-function-types)这里是可以把函数的const去掉的
 
 ```cpp
 // 构造函数指针不可获取，因为不知道是哪个重载

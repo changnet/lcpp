@@ -13,9 +13,13 @@ public:
     {
     }
 
-    int get_i() //const
+    int get_i() const
     {
         return _i;
+    }
+
+    void foo() const
+    {
     }
 
     void set_i(int i)
@@ -174,6 +178,7 @@ int main(int argc, char *argv[])
     lt.def<&Test::set_s>("set_s");
     lt.def<&Test::get_i>("get_i");
     lt.def<&Test::get_s>("get_s");
+    lt.def<&Test::foo>("foo");
     lt.def<&Test::set>("set");
     lt.def<&Test::sss>("sss");
     lt.def<&Test::test_param>("test_param");

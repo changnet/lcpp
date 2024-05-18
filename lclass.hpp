@@ -203,9 +203,10 @@ namespace
         lua_pushstring(L, v.c_str());
     }
 
+    // C++ 20 std::remove_cvref
+    // TODO std::remove_volatile 需要吗？
     template <typename T>
-    using remove_cvref = std::remove_cv<std::remove_reference_t<T>>::template type; // C++ 20 std::remove_cvref
-
+    using remove_cvref = std::remove_cv<std::remove_reference_t<T>>::template type;
     template <class T> class Register;
     template<typename Ret, typename... Args>
     class Register<Ret(*)(Args...)>
@@ -256,44 +257,48 @@ private:
     using lua_CppFunction = int32_t(T::*)(lua_State*);
 
     template <class T> class ClassRegister;
+
     template<typename Ret, typename... Args>
     class ClassRegister<Ret(T::*)(Args...)>
     {
     private:
         static constexpr auto indices = std::make_index_sequence<sizeof...(Args)>{};
 
-        template <size_t... I, typename = std::enable_if_t<!std::is_void<Ret>::value>>
-        static int caller(lua_State* L, Ret(T::* fp)(Args...), const std::index_sequence<I...>&)
+        template <auto fp, size_t... I>
+        static int caller(lua_State* L, const std::index_sequence<I...>&)
         {
             T** ptr = (T**)luaL_checkudata(L, 1, _class_name);
             if (ptr == nullptr || *ptr == nullptr)
             {
-                return luaL_error(L, "%s calling method with null pointer",
-                    _class_name);
-            }
-            cpp_to_lua(L, ((*ptr)->*fp)(lua_to_cpp<remove_cvref<Args>>(L, 2 + I)...));
-            return 1;
-        }
-        template <size_t... I>
-        static int caller(lua_State* L, void(T::* fp)(Args...), const std::index_sequence<I...>&)
-        {
-            T** ptr = (T**)luaL_checkudata(L, 1, _class_name);
-            if (ptr == nullptr || *ptr == nullptr)
-            {
-                return luaL_error(L, "%s calling method with null pointer",
-                    _class_name);
+                return luaL_error(L, "%s calling method with null pointer", _class_name);
             }
 
-            ((*ptr)->*fp)(lua_to_cpp<remove_cvref<Args>>(L, 2 + I)...);
-            return 0;
+            // 使用if constexpr替换多个模板好维护一些
+            // template <size_t... I, typename = std::enable_if_t<!std::is_void<Ret>::value>>
+
+            if constexpr (std::is_void_v<Ret>)
+            {
+                ((*ptr)->*fp)(lua_to_cpp<remove_cvref<Args>>(L, 2 + I)...);
+                return 0;
+            }
+            else
+            {
+                cpp_to_lua(L, ((*ptr)->*fp)(lua_to_cpp<remove_cvref<Args>>(L, 2 + I)...));
+                return 1;
+            }
         }
     public:
         template<auto fp>
         static int reg(lua_State* L)
         {
-            return caller(L, fp, indices);
+            return caller<fp>(L, indices);
         }
     };
+
+    template<typename Ret, typename... Args>
+    class ClassRegister<Ret(T::*)(Args...) const> : public ClassRegister<Ret(T::*)(Args...)>
+    {};
+
 public:
     virtual ~LClass() {}
 
