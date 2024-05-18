@@ -11,7 +11,25 @@ namespace
     {
         static_assert(std::is_pointer<T>::value, "type unknow");
 
-        return (T)lua_touserdata(L, i);
+        // 不是userdata这里会返回nullptr
+        void* p = lua_touserdata(L, i);
+
+        using T1 = typename std::remove_pointer_t<T>;
+        if constexpr (std::is_void_v<T1>)
+        {
+            return p;
+        }
+        else
+        {
+            if (!p || lua_islightuserdata(L, i)) return (T)p;
+
+            // 这里只能是full userdata了，一般是通过lclass push的指针
+            // LClass里的模板参数有构造参数，这里只有类型没有构造参数取不到名字了，这个得改一下
+            const char* name = LClass<T1>::template _class_name;
+            if (luaL_testudata(L, i, name)) return *((T1**)p);
+
+            return nullptr;
+        }
     }
 
     template<>
@@ -595,9 +613,10 @@ private:
         return ((*ptr)->*pf)(L);
     }
 
+public:
+    static const char* _class_name;
 private:
     lua_State* L;
-    static const char* _class_name;
     static constexpr auto _ctor_indices = std::make_index_sequence<sizeof...(CtorArgs)>{};
 };
 template <class T, typename... CtorArgs> const char* LClass<T, CtorArgs...>::_class_name = nullptr;

@@ -71,10 +71,11 @@ test3(fc_ret());
 哪咋办呢，实现两套模板？我原本想的是，只有一个ClassRegister类，里面多实现一个带const的caller函数即可。结果发现不行，因为函数类型是传给ClassRegister类的，那就要实现一套`class ClassRegister<Ret(T::*)(Args...)>`，另一套`class ClassRegister<Ret(T::*)(Args...) const>`。
 这样是可以的，但是这两套模板，除了这个const其他完全一样，没达到代码复用的目的，比较难维护。
 
-复用代码这个事嘛，一个是组合，一个是继承，宏定义这种就不用了。那这里用继承比较合适，用带const的去继承不带const的即可，里面的函数就可以不用重新实现一套。
+复用代码这个事嘛，一个是组合，一个是继承，宏定义这种就不用了。那这里用继承比较合适，用带const的去继承不带const的即可，里面的函数就可以不用重新实现一套，全部继承就行。
 ```cpp
     template<typename Ret, typename... Args>
     class ClassRegister<Ret(T::*)(Args...) const> : public ClassRegister<Ret(T::*)(Args...)>
+    {};
 ```
 只是原来的caller函数是带类型的`static int caller(lua_State* L, Ret(T::* fp)(Args...), const std::index_sequence<I...>&)`，那现在这个类型就不固定了，因此也要改成和类型无关的auto，并放到模板参数中
 ```cpp
@@ -82,8 +83,10 @@ test3(fc_ret());
         static int caller(lua_State* L, const std::index_sequence<I...>&)
 ```
 
-我又查了一下，发现[https://stackoverflow.com/questions/38767993/should-stdremove-cv-work-on-function-types](https://stackoverflow.com/questions/38767993/should-stdremove-cv-work-on-function-types)这里是可以把函数的const去掉的
+我又查了一下，发现[https://stackoverflow.com/questions/38767993/should-stdremove-cv-work-on-function-types](https://stackoverflow.com/questions/38767993/should-stdremove-cv-work-on-function-types)这里是可以把函数的const去掉的。
+不过我已经用上面的方法实现了，这个暂且做个备忘吧。
 
+### 构造函数
 ```cpp
 // 构造函数指针不可获取，因为不知道是哪个重载
 // 单例不允许创建
@@ -98,4 +101,15 @@ test3(fc_ret());
 * 安全问题
 */
 ```
+我原本是把构造函数放到类的模板参数里的。
 
+但后来我在用的时候，发现其实需要传某个类的指针，这时候检测一下类型还是很好的。可是这样的话，就没法取得到类名。
+取类名有两种方法，一种是C++通过注册时的class_name去取，不过这时候就需要模板参数了。
+```cpp
+const char* name = LClass<T1>::template _class_name;
+```
+
+另一种方式，通过Lua的userdata的元表去取。
+
+但是我后来又想到一个问题，我们注册一个类时，如果带了模板参数，那下次在另一个地方也需要这个类的话（比如push一个指针），也要写模板参数，这就很麻烦了。
+所以我决定改一下构造函数，放到独立的一个地方去声明。
