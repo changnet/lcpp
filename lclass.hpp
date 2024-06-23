@@ -23,8 +23,7 @@ namespace
         {
             if (!p || lua_islightuserdata(L, i)) return (T)p;
 
-            // 这里只能是full userdata了，一般是通过lclass push的指针
-            // LClass里的模板参数有构造参数，这里只有类型没有构造参数取不到名字了，这个得改一下
+            // 这里只能是full userdata了，如果定义过则是通过lclass push的指针
             const char* name = LClass<T1>::template _class_name;
             if (luaL_testudata(L, i, name)) return *((T1**)p);
 
@@ -138,7 +137,25 @@ namespace
     void cpp_to_lua(lua_State* L, T v)
     {
         static_assert(std::is_pointer<T>::value, "type unknow");
-        lua_pushlightuserdata(L, v);
+
+        // 如果声明过这个类，则以push方式推送到lua
+        using T1 = typename std::remove_pointer_t<T>;
+        if constexpr (std::is_void_v<T1>)
+        {
+            lua_pushlightuserdata(L, v);
+        }
+        else
+        {
+            const char* name = LClass<T1>::template _class_name;
+            if (name)
+            {
+                LClass<T1>::push(L, v);
+            }
+            else
+            {
+                lua_pushlightuserdata(L, v);
+            }
+        }
     }
 
     void cpp_to_lua(lua_State* L, bool v)
@@ -268,7 +285,7 @@ namespace lclass
     }
 }
 
-template <class T, typename... CtorArgs>
+template <class T>
 class LClass
 {
 private:
@@ -328,6 +345,7 @@ public:
     }
 
     // 注册一个类
+    // @param L lua虚拟机指针
     explicit LClass(lua_State* L, const char* classname)
         : L(L)
     {
@@ -379,11 +397,11 @@ public:
 
         // 创建一个table作为metatable的元表，这样 metatable() 就能创建一个对象
         // 保持写法和C++一样
-        // if constexpr 是编译时生成，所以没有构造函数的类型，是不会注册__call的
+        // if constexpr 是编译时生成，所以没有默认构造函数（不包含任何参数）的类，是不会注册__call的
         if constexpr (std::is_constructible_v<T>)
         {
             lua_newtable(L);
-            lua_pushcfunction(L, new_class_obj);
+            lua_pushcfunction(L, class_constructor<>);
             lua_setfield(L, -2, "__call");
             lua_setmetatable(L, -2);
         }
@@ -401,6 +419,25 @@ public:
         lua_setfield(L, -2, _class_name);
 
         lua_pop(L, 1); // drop _loaded table
+    }
+
+    // 指定构造函数的参数
+    template<typename... Args>
+    void constructor()
+    {
+        luaL_getmetatable(L, _class_name);
+        assert(lua_istable(L, -1));
+
+        lua_getmetatable(L, -1);
+        if (!lua_istable(L, -1))
+        {
+            lua_newtable(L);
+        }
+        lua_pushcfunction(L, class_constructor<Args...>);
+        lua_setfield(L, -2, "__call");
+        lua_setmetatable(L, -2);
+
+        lua_pop(L, 1); /* drop class metatable */
     }
 
     /* 将c对象push栈,gc表示lua销毁userdata时，在gc函数中是否将当前指针delete
@@ -506,19 +543,21 @@ public:
     }
 
 private:
-    template <size_t... I>
-    static T *class_obj_creator(lua_State* L, const std::index_sequence<I...>&)
+    template <typename... Args, size_t... I>
+    static T * class_constructor_caller(lua_State* L, const std::index_sequence<I...>&)
     {
-        return new T(lua_to_cpp<CtorArgs>(L, 2 + I)...);
+        return new T(lua_to_cpp<Args>(L, 2 + I)...);
     }
 
-    /* 创建c对象 */
-    static int new_class_obj(lua_State* L)
+    template<typename... Args>
+    static int class_constructor(lua_State* L)
     {
-        /* lua调用__call,第一个参数是元表 */
-        T* obj = class_obj_creator(L, _ctor_indices);
+        T* obj = class_constructor_caller<Args...>(
+            L, std::make_index_sequence<sizeof...(Args)>{});
 
-        lua_settop(L, 1); /* 清除所有构造函数参数,只保留元表 */
+        // lua调用__call,第一个参数是元表
+        // 清除所有构造函数参数,只保留元表(TODO: 是否要清除)
+        lua_settop(L, 1); /*  */
 
         T** ptr = (T**)lua_newuserdata(L, sizeof(T*));
         *ptr = obj;
@@ -617,6 +656,5 @@ public:
     static const char* _class_name;
 private:
     lua_State* L;
-    static constexpr auto _ctor_indices = std::make_index_sequence<sizeof...(CtorArgs)>{};
 };
-template <class T, typename... CtorArgs> const char* LClass<T, CtorArgs...>::_class_name = nullptr;
+template <class T> const char* LClass<T>::_class_name = nullptr;

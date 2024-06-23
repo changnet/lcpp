@@ -184,7 +184,8 @@ int main(int argc, char *argv[])
     lt.def<&Test::test_param>("test_param");
     lt.set(Test::V1, "V1");
 
-    LClass<TestCtor, int, const char*> ltc(L, "TestCtor");
+    LClass<TestCtor> ltc(L, "TestCtor");
+    ltc.constructor<int, const char*>();
     ltc.def<&TestCtor::dump>("dump");
 
     LClass<TestCtor2> ltc2(L, "TestCtor2");
@@ -193,7 +194,7 @@ int main(int argc, char *argv[])
     Test gt;
     gt.set_i(111111);
     gt.set_s("222222222222");
-    lt.push(L, &gt);
+    LClass<Test>::push(L, &gt); // lt.push(L, &gt)
     lua_setglobal(L, "gt");
 
     TestCtor2* gtc2 = TestCtor2::instance();
