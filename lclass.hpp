@@ -238,6 +238,28 @@ namespace
         lua_pushstring(L, v.c_str());
     }
 
+    // 前置声明
+    template <typename T> struct class_remove;
+    // 特化为static函数或全局函数
+    template<typename Ret, typename... Args>
+    struct class_remove<Ret(*)(Args...)>
+    {
+        using type = Ret(*)(Args...);
+    };
+    // 特化为成员函数
+    template<typename T, typename Ret, typename... Args>
+    struct class_remove<Ret(T::*)(Args...)>
+    {
+        using type = Ret(*)(Args...);
+    };
+    // 特化为const成员函数
+    template<typename T, typename Ret, typename... Args>
+    struct class_remove<Ret(T::*)(Args...) const> : public class_remove<Ret(T::*)(Args...)>
+    {};
+
+    template<typename T>
+    inline constexpr bool is_lua_func = std::is_same<typename class_remove<T>::type, lua_CFunction>::value;
+
     // C++ 20 std::remove_cvref
     // TODO std::remove_volatile 需要吗？
     template <typename T>
@@ -272,7 +294,7 @@ namespace
 
 namespace lclass
 {
-    template<auto fp, typename = std::enable_if_t<!std::is_same_v<decltype(fp), lua_CFunction>>>
+    template<auto fp, typename = std::enable_if_t<!is_lua_func<decltype(fp)>>>
     void reg_global_func(lua_State* L, const char* name)
     {
         lua_register(L, name, Register<decltype(fp)>::template reg<fp>);
@@ -289,12 +311,13 @@ template <class T>
 class LClass
 {
 private:
-    using lua_CppFunction = int32_t(T::*)(lua_State*);
+    template<typename FT>
+    using lua_CppFunction = int32_t(FT::*)(lua_State*);
 
-    template <class T> class ClassRegister;
+    template <typename FT> class ClassRegister;
 
-    template<typename Ret, typename... Args>
-    class ClassRegister<Ret(T::*)(Args...)>
+    template<typename FT, typename Ret, typename... Args>
+    class ClassRegister<Ret(FT::*)(Args...)>
     {
     private:
         static constexpr auto indices = std::make_index_sequence<sizeof...(Args)>{};
@@ -330,8 +353,8 @@ private:
         }
     };
 
-    template<typename Ret, typename... Args>
-    class ClassRegister<Ret(T::*)(Args...) const> : public ClassRegister<Ret(T::*)(Args...)>
+    template<typename FT, typename Ret, typename... Args>
+    class ClassRegister<Ret(FT::*)(Args...) const> : public ClassRegister<Ret(FT::*)(Args...)>
     {};
 
 public:
@@ -516,12 +539,11 @@ public:
     }
 
     template<auto fp,
-        typename = std::enable_if_t<!std::is_same_v<decltype(fp), lua_CFunction>>,
-        typename = std::enable_if_t<!std::is_same_v<decltype(fp), lua_CppFunction>>
+        typename = std::enable_if_t<!is_lua_func<decltype(fp)>>
     >
         void def(const char* name)
     {
-        lua_CFunction cfp = ClassRegister<decltype(fp)>::template reg<fp>;
+            lua_CFunction cfp = ClassRegister<decltype(fp)>::template reg<fp>;
 
         luaL_getmetatable(L, _class_name);
 

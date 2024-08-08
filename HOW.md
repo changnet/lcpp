@@ -127,3 +127,28 @@ t1.constructor<int, double>();
 LClass<T1>::push(L, t);
 ```
 这样使用的时候只有类名，像`LClass<T1>`，这下不可能会传错参数了吧。
+
+# 继承
+使用的时候，又发现了一个问题。派生类可以调用基类的函数，当然也有在lua调用基类函数的需求。可是却注册不了基类的函数。
+```
+class A
+{
+public:
+	void test();
+};
+
+class B
+{
+public:
+	void do_other();
+};
+
+LClass<B> lc;
+lc.def<&A::test()>("test"); // 出错
+```
+
+原因是`ClassRegister`把函数类型(T::*)限制死了，考虑去掉T或者把T这个类型放到函数里，然后用`std::is_base_of`保证是基类函数即可。
+
+这里还有个问题，之前是通过`typename = std::enable_if_t<!std::is_same_v<decltype(fp), lua_CppFunction>`来判断的，现在lua_CppFunction中的T不一样了，那这个判断也不能放这里了，得放`ClassRegister`
+
+如此就可以实现把基类的函数在派生类中定义到Lua

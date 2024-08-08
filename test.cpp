@@ -13,6 +13,14 @@ public:
     {
     }
 
+    int lstyle(lua_State* L)
+    {
+        lua_Integer i = luaL_checkinteger(L, 1);
+
+        lua_pushinteger(L, i);
+        return 1;
+    }
+
     int get_i() const
     {
         return _i;
@@ -73,6 +81,11 @@ public:
 private:
     int _i;
     std::string _s;
+};
+
+class TestMore : public Test
+{
+
 };
 
 class TestCtor
@@ -202,6 +215,11 @@ int main(int argc, char *argv[])
     LClass<TestCtor2> ltc2_1(L);
     ltc2_1.push_global(L, gtc2, "gtc2");
 
+    LClass<TestMore> tm(L, "TestMore");
+    tm.def<&TestMore::set_i>("set_i");
+    tm.def<&TestMore::get_i>("get_i");
+    tm.def<&TestMore::lstyle>("lstyle");
+
     luaL_dofile(L, "test.lua");
  
     lua_close(L);
@@ -220,6 +238,10 @@ int main(int argc, char *argv[])
     sol::usertype<player> player_type = lua.new_usertype<player>("player",
         sol::constructors<player()>());
     player_type["shoot"] = &player::shoot;
+
+    sol::usertype<TestMore> test_more_type = lua.new_usertype<TestMore>("TestMore",
+        sol::constructors<TestMore()>());
+    test_more_type["gi"] = &TestMore::get_i;
 
     test3(fc_ret());
 

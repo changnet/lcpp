@@ -30,6 +30,14 @@ function main()
 	-- local TestCtor2 = require "TestCtor2"
 	-- local gtc2 = TestCtor2() -- !!! no constructor
 	gtc2:dump()
+
+	local TestMore = require "TestMore"
+	local tm = TestMore()
+	tm:set_i(987563)
+	print("TestMore get_i", tm:get_i())
+
+	local v = 56312745
+	assert(v == tm:lstyle(v))
 end
 
 local ok, msg = xpcall(main, function(msg)
