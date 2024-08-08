@@ -241,11 +241,12 @@ namespace
     // 前置声明
     template <typename T> struct class_remove;
     // 特化为static函数或全局函数
-    template<typename Ret, typename... Args>
+    /*template<typename Ret, typename... Args>
     struct class_remove<Ret(*)(Args...)>
     {
         using type = Ret(*)(Args...);
     };
+    */
     // 特化为成员函数
     template<typename T, typename Ret, typename... Args>
     struct class_remove<Ret(T::*)(Args...)>
@@ -294,16 +295,18 @@ namespace
 
 namespace lclass
 {
-    template<auto fp, typename = std::enable_if_t<!is_lua_func<decltype(fp)>>>
+    template<auto fp>
     void reg_global_func(lua_State* L, const char* name)
     {
-        lua_register(L, name, Register<decltype(fp)>::template reg<fp>);
-    }
-
-    template<lua_CFunction fp>
-    void reg_global_func(lua_State* L, const char* name)
-    {
-        lua_register(L, name, fp);
+        if constexpr (std::is_same_v<decltype(fp), lua_CFunction>)
+        {
+            lua_register(L, name, fp);
+            
+        }
+        else
+        {
+            lua_register(L, name, Register<decltype(fp)>::template reg<fp>);
+        }
     }
 }
 
@@ -311,8 +314,7 @@ template <class T>
 class LClass
 {
 private:
-    template<typename FT>
-    using lua_CppFunction = int32_t(FT::*)(lua_State*);
+    using lua_CppFunction = int32_t(T::*)(lua_State*);
 
     template <typename FT> class ClassRegister;
 
@@ -512,38 +514,22 @@ public:
         return 0;
     }
 
-    /* 定义类的static函数 */
-    template <lua_CFunction pf>
+    template<auto fp>
     void def(const char* name)
     {
-        luaL_getmetatable(L, _class_name);
-
-        lua_pushcfunction(L, pf);
-        lua_setfield(L, -2, name);
-
-        lua_pop(L, 1); /* drop class metatable */
-    }
-
-    /*
-     * 定义格式为 int (T::*)(lua_State *L) 的成员函数，注意取参数时，需要从第2个开始取
-     */
-    template <lua_CppFunction pf>
-    void def(const char* name)
-    {
-        luaL_getmetatable(L, _class_name);
-
-        lua_pushcfunction(L, &fun_thunk<pf>);
-        lua_setfield(L, -2, name);
-
-        lua_pop(L, 1); /* drop class metatable */
-    }
-
-    template<auto fp,
-        typename = std::enable_if_t<!is_lua_func<decltype(fp)>>
-    >
-        void def(const char* name)
-    {
-            lua_CFunction cfp = ClassRegister<decltype(fp)>::template reg<fp>;
+        lua_CFunction cfp = nullptr;
+        if constexpr (std::is_same_v<decltype(fp), lua_CFunction>)
+        {
+            cfp = fp;
+        }
+        else if constexpr (is_lua_func<decltype(fp)>)
+        {
+            cfp = &fun_thunk<fp>;
+        }
+        else
+        {
+            cfp = ClassRegister<decltype(fp)>::template reg<fp>;
+        }
 
         luaL_getmetatable(L, _class_name);
 
@@ -661,7 +647,7 @@ private:
         }
     }
 
-    template <lua_CppFunction pf>
+    template <auto pf>
     static int fun_thunk(lua_State* L)
     {
         T** ptr = (T**)luaL_checkudata(L, 1, _class_name);

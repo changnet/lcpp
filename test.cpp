@@ -15,7 +15,7 @@ public:
 
     int lstyle(lua_State* L)
     {
-        lua_Integer i = luaL_checkinteger(L, 1);
+        lua_Integer i = luaL_checkinteger(L, 2);
 
         lua_pushinteger(L, i);
         return 1;
