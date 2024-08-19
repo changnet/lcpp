@@ -21,6 +21,11 @@ public:
         return 1;
     }
 
+    int static_not_cfunc(int v)
+    {
+        return v;
+    }
+
     int get_i() const
     {
         return _i;
@@ -195,6 +200,10 @@ int main(int argc, char *argv[])
     lt.def<&Test::set>("set");
     lt.def<&Test::sss>("sss");
     lt.def<&Test::test_param>("test_param");
+
+    // 注意这个函数的调用，即使是静态函数，但在lua的第一个参数也是需要对象的
+    // 注意是按类注册的话，如果注册为全局函数，调用时比较难区分。所以干脆全部以对象方式调用
+    lt.def<&Test::static_not_cfunc>("static_not_cfunc");
     lt.set(Test::V1, "V1");
 
     LClass<TestCtor> ltc(L, "TestCtor");

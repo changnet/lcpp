@@ -11,6 +11,9 @@ function main()
 	local ret = t1:set(888, "t1 lua set")
 	assert(ret)
 	dumpTest(t1:toludata()) -- !!! not dumpTest(t1)
+	
+	local vcfun = 0xFF77
+	assert(vcfun == t1:static_not_cfunc(vcfun))
 
 	local t2 = Test()
 	t2:set_i(922222)
