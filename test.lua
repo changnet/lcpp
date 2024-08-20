@@ -14,6 +14,7 @@ function main()
 	
 	local vcfun = 0xFF77
 	assert(vcfun == t1:static_not_cfunc(vcfun))
+	assert(vcfun == Test:static_not_cfunc(vcfun))
 
 	local t2 = Test()
 	t2:set_i(922222)

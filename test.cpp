@@ -21,7 +21,7 @@ public:
         return 1;
     }
 
-    int static_not_cfunc(int v)
+    static int static_not_cfunc(int v)
     {
         return v;
     }
@@ -228,6 +228,7 @@ int main(int argc, char *argv[])
     tm.def<&TestMore::set_i>("set_i");
     tm.def<&TestMore::get_i>("get_i");
     tm.def<&TestMore::lstyle>("lstyle");
+    tm.def<&TestMore::static_not_cfunc>("static_not_cfunc");
 
     luaL_dofile(L, "test.lua");
  
