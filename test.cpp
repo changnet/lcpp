@@ -1,4 +1,4 @@
-#include "lclass.hpp"
+#include "lcpp.hpp"
 #include <iostream>
 #include <sol/sol.hpp>
 
@@ -82,6 +82,11 @@ public:
     {
         std::cout << "a class static method" << std::endl;
         return 0;
+    }
+
+    void test_char(char a, char b)
+    {
+        std::cout << "test char" << "    " << a << "    " << b << std::endl;
     }
 private:
     int _i;
@@ -186,12 +191,12 @@ int main(int argc, char *argv[])
     auto L = luaL_newstate();
     luaL_openlibs(L);
 
-    lclass::reg_global_func<&newTest>(L, "newTest");
-    lclass::reg_global_func<&dumpTest>(L, "dumpTest");
-    lclass::reg_global_func<&test>(L, "test");
-    lclass::reg_global_func<&test1>(L, "test1");
+    lcpp::reg_global_func<&newTest>(L, "newTest");
+    lcpp::reg_global_func<&dumpTest>(L, "dumpTest");
+    lcpp::reg_global_func<&test>(L, "test");
+    lcpp::reg_global_func<&test1>(L, "test1");
 
-    LClass<Test> lt(L, "Test");
+    lcpp::Class<Test> lt(L, "Test");
     lt.def<&Test::set_i>("set_i");
     lt.def<&Test::set_s>("set_s");
     lt.def<&Test::get_i>("get_i");
@@ -200,31 +205,32 @@ int main(int argc, char *argv[])
     lt.def<&Test::set>("set");
     lt.def<&Test::sss>("sss");
     lt.def<&Test::test_param>("test_param");
+    lt.def<&Test::test_char>("test_char");
 
     // 注意这个函数的调用，即使是静态函数，但在lua的第一个参数也是需要对象的
     // 注意是按类注册的话，如果注册为全局函数，调用时比较难区分。所以干脆全部以对象方式调用
     lt.def<&Test::static_not_cfunc>("static_not_cfunc");
     lt.set(Test::V1, "V1");
 
-    LClass<TestCtor> ltc(L, "TestCtor");
+    lcpp::Class<TestCtor> ltc(L, "TestCtor");
     ltc.constructor<int, const char*>();
     ltc.def<&TestCtor::dump>("dump");
 
-    LClass<TestCtor2> ltc2(L, "TestCtor2");
+    lcpp::Class<TestCtor2> ltc2(L, "TestCtor2");
     ltc2.def<&TestCtor2::dump>("dump");
 
     Test gt;
     gt.set_i(111111);
     gt.set_s("222222222222");
-    LClass<Test>::push(L, &gt); // lt.push(L, &gt)
+    lcpp::Class<Test>::push(L, &gt); // lt.push(L, &gt)
     lua_setglobal(L, "gt");
 
     TestCtor2* gtc2 = TestCtor2::instance();
 
-    LClass<TestCtor2> ltc2_1(L);
+    lcpp::Class<TestCtor2> ltc2_1(L);
     ltc2_1.push_global(L, gtc2, "gtc2");
 
-    LClass<TestMore> tm(L, "TestMore");
+    lcpp::Class<TestMore> tm(L, "TestMore");
     tm.def<&TestMore::set_i>("set_i");
     tm.def<&TestMore::get_i>("get_i");
     tm.def<&TestMore::lstyle>("lstyle");

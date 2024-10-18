@@ -1,5 +1,9 @@
 
-function main()
+local function e_trace(msg)
+	return string.format("%s: %s", msg, debug.traceback())
+end
+
+local function main()
 	local t = newTest()
 	dumpTest(t)
 	test()
@@ -20,12 +24,21 @@ function main()
 	t2:set_i(922222)
 	t2:set_s("222229")
 	print("t2 value", t2:get_i(), t2:get_s())
+	t2:test_char("a", "A")
+	t2:test_char(97, 65)
 
 	dumpTest(gt:toludata()) -- !!! not dumpTest(gt)
 	gt.sss()            -- !!! not gt:sss()
 	gt:test_param(true, 2222, 3.3333, 44.44444, "5555555", "6666666666666",
 		gt:toludata(), "88888888", "999999999");
-	gt:test_param()
+
+	-- if enable ARGS_CHECK, this should throw a error
+	local ok, msg = xpcall(function()
+		gt:test_param()
+	end, e_trace)
+	if not ok then
+		print(msg)
+	end
 
 	local TestCtor = require "TestCtor"
 	local tc = TestCtor(1111111, "tctctctctc")
@@ -44,8 +57,6 @@ function main()
 	assert(v == tm:lstyle(v))
 end
 
-local ok, msg = xpcall(main, function(msg)
-	return string.format("%s: %s", msg, debug.traceback())
-end)
+local ok, msg = xpcall(main, e_trace)
 
 print(msg or "ok")
